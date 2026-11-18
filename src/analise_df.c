@@ -1,0 +1,185 @@
+#define _POSIX_C_SOURCE 200809L
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../include/analise_df.h"
+#include "../include/grafo.h"
+
+#define TAM_LINHA 4096        /* tamanho máximo de uma linha do CSV */
+#define MAX_CANDIDATOS 64     /* máximo de colunas de candidatos aceitas */
+#define SEPARADOR ";"
+
+/* Remove '\n' e '\r' do final da linha (suporta LF e CRLF). */
+static void remover_quebra_de_linha(char *linha) {
+    size_t n = strlen(linha);
+    while (n > 0 && (linha[n - 1] == '\n' || linha[n - 1] == '\r')) {
+        linha[--n] = '\0';
+    }
+}
+
+/*
+ * Descarta o restante de uma linha maior que o buffer.
+ * Retorna 1 se a linha lida estava truncada (sem '\n' e fora do fim de arquivo).
+ */
+static int linha_truncada(FILE *f, const char *linha) {
+    if (strchr(linha, '\n') != NULL || feof(f)) {
+        return 0;
+    }
+    int c;
+    while ((c = fgetc(f)) != EOF && c != '\n') {
+        /* consome o resto da linha */
+    }
+    return 1;
+}
+
+/* Converte `texto` em percentual válido [0, 100]. Retorna 0 se OK, -1 se inválido. */
+static int parse_percentual(const char *texto, float *saida) {
+    if (!texto || *texto == '\0') {
+        return -1;
+    }
+    char *fim = NULL;
+    double v = strtod(texto, &fim);
+    if (fim == texto || *fim != '\0' || !isfinite(v) || v < 0.0 || v > 100.0) {
+        return -1;
+    }
+    *saida = (float)v;
+    return 0;
+}
+
+/*
+ * Separa o cabeçalho em `nomes` (ponteiros para dentro de `linha`, que é
+ * modificada). Retorna a quantidade de candidatos (>= 1) ou -1 se inválido.
+ */
+static int ler_cabecalho(char *linha, char *nomes[MAX_CANDIDATOS]) {
+    char *tok = strtok(linha, SEPARADOR);
+    if (!tok) {
+        return -1;
+    }
+    /* Ignora BOM UTF-8 eventual antes de "RA". */
+    if ((unsigned char)tok[0] == 0xEF && (unsigned char)tok[1] == 0xBB &&
+        (unsigned char)tok[2] == 0xBF) {
+        tok += 3;
+    }
+    if (strcmp(tok, "RA") != 0) {
+        return -1;
+    }
+
+    int n = 0;
+    while ((tok = strtok(NULL, SEPARADOR)) != NULL) {
+        if (n == MAX_CANDIDATOS || *tok == '\0') {
+            return -1;
+        }
+        nomes[n++] = tok;
+    }
+    return n > 0 ? n : -1;
+}
+
+/* Retorna o índice do vértice com `rotulo`, criando-o se não existir (-1 em erro). */
+static int obter_ou_criar_vertice(Grafo *g, const char *rotulo) {
+    int idx = buscar_vertice(g, rotulo);
+    if (idx != -1) {
+        return idx;
+    }
+    return adicionar_vertice(g, rotulo);
+}
+
+Grafo *construir_grafo_bipartido_df(const char *caminho) {
+    if (!caminho) {
+        return NULL;
+    }
+
+    FILE *f = fopen(caminho, "r");
+    if (!f) {
+        fprintf(stderr, "Erro: nao foi possivel abrir '%s'\n", caminho);
+        return NULL;
+    }
+
+    char linha[TAM_LINHA];
+    char *candidatos[MAX_CANDIDATOS];
+    int num_candidatos;
+
+    /* Cabeçalho (os nomes dos candidatos vêm dele). */
+    if (!fgets(linha, sizeof(linha), f) || linha_truncada(f, linha)) {
+        fprintf(stderr, "Erro: cabecalho ausente ou grande demais em '%s'\n", caminho);
+        fclose(f);
+        return NULL;
+    }
+    remover_quebra_de_linha(linha);
+
+    /* `cabecalho` precisa viver até o fim, pois `candidatos[]` aponta para ele. */
+    char cabecalho[TAM_LINHA];
+    strcpy(cabecalho, linha);
+    num_candidatos = ler_cabecalho(cabecalho, candidatos);
+    if (num_candidatos < 0) {
+        fprintf(stderr, "Erro: cabecalho invalido em '%s' (esperado 'RA;candidato;...')\n",
+                caminho);
+        fclose(f);
+        return NULL;
+    }
+
+    Grafo *g = criar_grafo(32, 0);
+    if (!g) {
+        fprintf(stderr, "Erro: falha ao alocar o grafo\n");
+        fclose(f);
+        return NULL;
+    }
+
+    int num_linha = 1;
+    while (fgets(linha, sizeof(linha), f)) {
+        num_linha++;
+
+        if (linha_truncada(f, linha)) {
+            fprintf(stderr, "Aviso: linha %d ignorada (maior que %d caracteres)\n",
+                    num_linha, TAM_LINHA - 1);
+            continue;
+        }
+        remover_quebra_de_linha(linha);
+        if (linha[0] == '\0') {
+            continue; /* linha em branco */
+        }
+
+        /* Tokeniza: strtok colapsa campos vazios, o que muda a contagem e a
+         * linha é rejeitada abaixo (nunca desalinha colunas silenciosamente). */
+        char *nome_ra = strtok(linha, SEPARADOR);
+        float pesos[MAX_CANDIDATOS];
+        int lidos = 0;
+        int valida = (nome_ra != NULL && *nome_ra != '\0');
+
+        char *tok;
+        while (valida && (tok = strtok(NULL, SEPARADOR)) != NULL) {
+            if (lidos == num_candidatos || parse_percentual(tok, &pesos[lidos]) != 0) {
+                valida = 0;
+                break;
+            }
+            lidos++;
+        }
+        if (!valida || lidos != num_candidatos) {
+            fprintf(stderr, "Aviso: linha %d ignorada (malformada)\n", num_linha);
+            continue;
+        }
+
+        int ra = obter_ou_criar_vertice(g, nome_ra);
+        if (ra == -1) {
+            fprintf(stderr, "Erro: falha ao criar o vertice da RA '%s'\n", nome_ra);
+            liberar_grafo(g);
+            fclose(f);
+            return NULL;
+        }
+
+        for (int i = 0; i < num_candidatos; i++) {
+            int cand = obter_ou_criar_vertice(g, candidatos[i]);
+            if (cand == -1 || adicionar_aresta(g, ra, cand, pesos[i]) != 0) {
+                fprintf(stderr, "Erro: falha ao ligar '%s' a '%s'\n", nome_ra, candidatos[i]);
+                liberar_grafo(g);
+                fclose(f);
+                return NULL;
+            }
+        }
+    }
+
+    fclose(f);
+    return g;
+}

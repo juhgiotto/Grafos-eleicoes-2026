@@ -1,0 +1,11 @@
+RA;CAND A;CAND B
+Valida Um;10.5;20.25
+Falta Campo;10.5
+Texto;abc;20
+Acima de 100;101;5
+Negativo;-1;5
+;10;20
+Campo Vazio;;20
+Campos Demais;1;2;3
+
+Valida Dois;30;40
