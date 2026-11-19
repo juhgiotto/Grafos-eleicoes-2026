@@ -27,6 +27,24 @@
 Grafo *construir_grafo_bipartido_df(const char *caminho);
 
 /*
+ * Identifica e imprime o candidato dominante (maior percentual de votos) em
+ * cada Região Administrativa (RA) do grafo bipartido.
+ *
+ * Identificação de RAs:
+ *   Usa coloração bipartite (BFS a partir do vértice 0, assumindo que o
+ *   vértice 0 é uma RA, conforme construído por construir_grafo_bipartido_df).
+ *   Vértices na partição 0 com ao menos uma aresta são tratados como RAs.
+ *
+ * Critério de empate:
+ *   Empates (diferença de peso < 1e-4 em relação ao máximo da RA) são
+ *   reportados explicitamente listando todos os candidatos empatados.
+ *
+ * Parâmetros:
+ *   g: ponteiro para o grafo bipartido RA x Candidato (ignora NULL).
+ */
+void candidatos_dominantes_por_ra(const Grafo *g);
+
+/*
  * Eixo nacional (src/analise_nacional.c; formatos em docs/formato_csv.md).
  * Ambos retornam um Grafo não-orientado que o chamador libera com
  * liberar_grafo, ou NULL em caso de erro.

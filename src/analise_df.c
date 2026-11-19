@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,7 @@
 #define TAM_LINHA 4096        /* tamanho máximo de uma linha do CSV */
 #define MAX_CANDIDATOS 64     /* máximo de colunas de candidatos aceitas */
 #define SEPARADOR ";"
+#define EPSILON_EMPATE 1e-4   /* tolerância para considerar empate entre percentuais */
 
 /* Remove '\n' e '\r' do final da linha (suporta LF e CRLF). */
 static void remover_quebra_de_linha(char *linha) {
@@ -194,4 +196,137 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
 
     fclose(f);
     return g;
+}
+
+/*
+ * Classifica os vértices de um grafo bipartido em duas partições (0 = RA,
+ * 1 = Candidato) via BFS, assumindo que o primeiro vértice com arestas
+ * pertence à partição 0 (RA).
+ * Retorna 0 em caso de sucesso, ou -1 se o grafo não for bipartido ou em
+ * falha de alocação.
+ */
+static int classificar_vertices_bipartido(const Grafo *g, int *tipo) {
+    int *fila;
+    int ini;
+    int fim;
+    int i;
+    int u;
+    const No *atual;
+
+    fila = malloc((size_t)g->num_vertices * sizeof(int));
+    if (!fila) {
+        return -1;
+    }
+
+    for (i = 0; i < g->num_vertices; i++) {
+        tipo[i] = -1;
+    }
+
+    for (i = 0; i < g->num_vertices; i++) {
+        if (tipo[i] != -1 || g->adj[i].num_arestas == 0) {
+            continue;
+        }
+        tipo[i] = 0;
+        ini = 0;
+        fim = 0;
+        fila[fim++] = i;
+
+        while (ini < fim) {
+            u = fila[ini++];
+            for (atual = g->adj[u].cabeca; atual != NULL; atual = atual->prox) {
+                if (tipo[atual->destino] == -1) {
+                    tipo[atual->destino] = 1 - tipo[u];
+                    fila[fim++] = atual->destino;
+                } else if (tipo[atual->destino] == tipo[u]) {
+                    free(fila);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    free(fila);
+    return 0;
+}
+
+/*
+ * Imprime o candidato dominante (ou todos os empatados, se houver empate
+ * dentro de EPSILON_EMPATE) para o vértice `ra`.
+ */
+static void imprimir_vencedor_ra(const Grafo *g, int ra) {
+    const No *atual;
+    float max_peso;
+    int empates;
+    int primeiro;
+
+    atual = g->adj[ra].cabeca;
+    if (!atual) {
+        return;
+    }
+
+    max_peso = atual->peso;
+    for (atual = atual->prox; atual != NULL; atual = atual->prox) {
+        if (atual->peso > max_peso) {
+            max_peso = atual->peso;
+        }
+    }
+
+    empates = 0;
+    for (atual = g->adj[ra].cabeca; atual != NULL; atual = atual->prox) {
+        if (fabs((double)(atual->peso - max_peso)) < EPSILON_EMPATE) {
+            empates++;
+        }
+    }
+
+    if (empates == 1) {
+        for (atual = g->adj[ra].cabeca; atual != NULL; atual = atual->prox) {
+            if (fabs((double)(atual->peso - max_peso)) < EPSILON_EMPATE) {
+                printf("%s -> %s (%.2f%%)\n", g->rotulos[ra],
+                       g->rotulos[atual->destino], max_peso);
+                break;
+            }
+        }
+    } else {
+        printf("%s -> Empate: ", g->rotulos[ra]);
+        primeiro = 1;
+        for (atual = g->adj[ra].cabeca; atual != NULL; atual = atual->prox) {
+            if (fabs((double)(atual->peso - max_peso)) < EPSILON_EMPATE) {
+                if (!primeiro) {
+                    printf(", ");
+                }
+                printf("%s", g->rotulos[atual->destino]);
+                primeiro = 0;
+            }
+        }
+        printf(" (%.2f%%)\n", max_peso);
+    }
+}
+
+void candidatos_dominantes_por_ra(const Grafo *g) {
+    int *tipo;
+    int i;
+
+    if (!g || g->num_vertices <= 0) {
+        return;
+    }
+
+    tipo = malloc((size_t)g->num_vertices * sizeof(int));
+    if (!tipo) {
+        fprintf(stderr, "Erro: falha ao alocar vetor de classificacao de vertices\n");
+        return;
+    }
+
+    if (classificar_vertices_bipartido(g, tipo) != 0) {
+        fprintf(stderr, "Erro: grafo invalido (nao bipartido ou falha de memoria)\n");
+        free(tipo);
+        return;
+    }
+
+    for (i = 0; i < g->num_vertices; i++) {
+        if (tipo[i] == 0 && g->adj[i].num_arestas > 0) {
+            imprimir_vencedor_ra(g, i);
+        }
+    }
+
+    free(tipo);
 }

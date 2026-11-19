@@ -102,11 +102,58 @@ static void test_linhas_malformadas_ignoradas(void) {
     liberar_grafo(g);
 }
 
+static void test_candidatos_dominantes_sintetico(void) {
+    Grafo *g;
+    Grafo *vazio;
+    int pp;
+    int ac;
+    int tag;
+    int cei;
+    int sob;
+    int cand_a;
+    int cand_b;
+
+    /* Casos degenerados: NULL e grafo vazio nao devem falhar. */
+    candidatos_dominantes_por_ra(NULL);
+    vazio = criar_grafo(4, 0);
+    assert(vazio != NULL);
+    candidatos_dominantes_por_ra(vazio);
+    liberar_grafo(vazio);
+
+    /* Dataset sintetico com 5 RAs e empate 40% x 40% em Sobradinho. */
+    g = criar_grafo(8, 0);
+    assert(g != NULL);
+
+    pp = adicionar_vertice(g, "Plano Piloto");
+    cand_a = adicionar_vertice(g, "A");
+    cand_b = adicionar_vertice(g, "B");
+    ac = adicionar_vertice(g, "Aguas Claras");
+    tag = adicionar_vertice(g, "Taguatinga");
+    cei = adicionar_vertice(g, "Ceilandia");
+    sob = adicionar_vertice(g, "Sobradinho");
+
+    assert(adicionar_aresta(g, pp, cand_a, 50.0f) == 0);
+    assert(adicionar_aresta(g, pp, cand_b, 30.0f) == 0);
+    assert(adicionar_aresta(g, ac, cand_a, 60.0f) == 0);
+    assert(adicionar_aresta(g, ac, cand_b, 25.0f) == 0);
+    assert(adicionar_aresta(g, tag, cand_a, 30.0f) == 0);
+    assert(adicionar_aresta(g, tag, cand_b, 55.0f) == 0);
+    assert(adicionar_aresta(g, cei, cand_a, 20.0f) == 0);
+    assert(adicionar_aresta(g, cei, cand_b, 65.0f) == 0);
+    assert(adicionar_aresta(g, sob, cand_a, 40.0f) == 0);
+    assert(adicionar_aresta(g, sob, cand_b, 40.0f) == 0);
+
+    printf("--- Candidatos dominantes por RA (sintetico 5 RAs) ---\n");
+    candidatos_dominantes_por_ra(g);
+    liberar_grafo(g);
+}
+
 int main(void) {
     test_arquivo_inexistente();
     test_cabecalho_invalido();
     test_dataset_sintetico();
     test_linhas_malformadas_ignoradas();
+    test_candidatos_dominantes_sintetico();
 
     printf("Todos os testes de analise_df passaram!\n");
     return 0;
