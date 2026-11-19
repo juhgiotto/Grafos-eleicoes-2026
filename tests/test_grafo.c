@@ -142,6 +142,31 @@ static void test_crescimento_dinamico(void) {
     liberar_grafo(g);
 }
 
+static void teste_bfs_propagacao(void) {
+    Grafo *g;
+    int df, go, mg, ba;
+
+    printf("\n=== BFS propagacao de fronteiras ===\n");
+
+    g = criar_grafo(5, 0);
+    df = adicionar_vertice(g, "DF");
+    go = adicionar_vertice(g, "GO");
+    mg = adicionar_vertice(g, "MG");
+    ba = adicionar_vertice(g, "BA");
+    adicionar_vertice(g, "RR");            /* isolado, sem arestas */
+
+    adicionar_aresta(g, df, go, 1.0f);
+    adicionar_aresta(g, go, mg, 1.0f);
+    adicionar_aresta(g, go, ba, 1.0f);
+
+    busca_largura_propagacao_fronteiras(g, df);   /* caso normal */
+    busca_largura_propagacao_fronteiras(g, -1);   /* origem invalida */
+    busca_largura_propagacao_fronteiras(g, 5);    /* origem invalida */
+    busca_largura_propagacao_fronteiras(NULL, 0); /* grafo nulo */
+
+    liberar_grafo(g);
+}
+
 int main(void) {
     test_grafo_vazio();
     test_insercao_e_busca_vertice();
@@ -149,6 +174,7 @@ int main(void) {
     test_aresta_nao_orientada_e_repetida();
     test_aresta_orientada();
     test_crescimento_dinamico();
+    teste_bfs_propagacao();
 
     printf("Todos os testes de grafo passaram!\n");
     return 0;
