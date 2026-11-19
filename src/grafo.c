@@ -185,3 +185,131 @@ void liberar_grafo(Grafo *g) {
 
     free(g);
 }
+
+/* ===== BFS de propagação por fronteiras (issue #9) ===== */
+
+/* Fila circular de inteiros usada pela BFS. */
+typedef struct {
+    int *dados;
+    int inicio;
+    int tamanho;
+    int capacidade;
+} FilaInt;
+
+static int fila_criar(FilaInt *f, int capacidade) {
+    f->dados = malloc((size_t)capacidade * sizeof(int));
+    f->inicio = 0;
+    f->tamanho = 0;
+    f->capacidade = capacidade;
+    return f->dados != NULL;
+}
+
+static int fila_vazia(const FilaInt *f) {
+    return f->tamanho == 0;
+}
+
+static void fila_enfileirar(FilaInt *f, int v) {
+    f->dados[(f->inicio + f->tamanho) % f->capacidade] = v;
+    f->tamanho++;
+}
+
+static int fila_desenfileirar(FilaInt *f) {
+    int v = f->dados[f->inicio];
+    f->inicio = (f->inicio + 1) % f->capacidade;
+    f->tamanho--;
+    return v;
+}
+
+static void fila_liberar(FilaInt *f) {
+    free(f->dados);
+    f->dados = NULL;
+}
+
+void busca_largura_propagacao_fronteiras(Grafo *g, int origem) {
+    int n, i, k, u, v, max_nivel, primeiro;
+    int *visitado;
+    int *nivel;
+    FilaInt fila;
+    const No *a;
+
+    if (g == NULL) {
+        fprintf(stderr, "BFS: grafo nulo.\n");
+        return;
+    }
+
+    n = g->num_vertices;
+    if (n <= 0 || origem < 0 || origem >= n) {
+        fprintf(stderr, "BFS: origem invalida (%d).\n", origem);
+        return;
+    }
+
+    visitado = calloc((size_t)n, sizeof(int));
+    nivel = malloc((size_t)n * sizeof(int));
+    if (visitado == NULL || nivel == NULL) {
+        fprintf(stderr, "BFS: falha de memoria.\n");
+        free(visitado);
+        free(nivel);
+        return;
+    }
+
+    if (!fila_criar(&fila, n)) {
+        fprintf(stderr, "BFS: falha de memoria.\n");
+        free(visitado);
+        free(nivel);
+        return;
+    }
+
+    for (i = 0; i < n; i++) {
+        nivel[i] = -1;
+    }
+
+    /* A origem entra com nível 0. */
+    visitado[origem] = 1;
+    nivel[origem] = 0;
+    fila_enfileirar(&fila, origem);
+    max_nivel = 0;
+
+    while (!fila_vazia(&fila)) {
+        u = fila_desenfileirar(&fila);
+        for (a = g->adj[u].cabeca; a != NULL; a = a->prox) {
+            v = a->destino;
+            if (!visitado[v]) {
+                visitado[v] = 1;
+                nivel[v] = nivel[u] + 1;
+                if (nivel[v] > max_nivel) {
+                    max_nivel = nivel[v];
+                }
+                fila_enfileirar(&fila, v);
+            }
+        }
+    }
+
+    /* Imprime as camadas. */
+    for (k = 0; k <= max_nivel; k++) {
+        printf("Camada %d:", k);
+        primeiro = 1;
+        for (v = 0; v < n; v++) {
+            if (nivel[v] == k) {
+                printf("%s%s", primeiro ? " " : ", ", g->rotulos[v]);
+                primeiro = 0;
+            }
+        }
+        printf("\n");
+    }
+
+    /* Estados desconectados da origem. */
+    primeiro = 1;
+    for (v = 0; v < n; v++) {
+        if (nivel[v] == -1) {
+            printf("%s%s", primeiro ? "Nao alcancados: " : ", ", g->rotulos[v]);
+            primeiro = 0;
+        }
+    }
+    if (!primeiro) {
+        printf("\n");
+    }
+
+    fila_liberar(&fila);
+    free(visitado);
+    free(nivel);
+}

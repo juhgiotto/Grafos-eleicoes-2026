@@ -88,4 +88,7 @@ void imprimir_grafo(const Grafo *g);
  */
 void liberar_grafo(Grafo *g);
 
+/* BFS por camadas a partir de 'origem' (issue #9). */
+void busca_largura_propagacao_fronteiras(Grafo *g, int origem);
+
 #endif /* GRAFO_H */
