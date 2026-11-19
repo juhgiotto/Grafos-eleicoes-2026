@@ -397,3 +397,102 @@ int extrair_vetor_ra(const Grafo *g, int ra, const int *candidatos,
 
     return 0;
 }
+
+Grafo *gerar_grafo_similaridade_ra(const Grafo *g_bipartido,
+                                   float limiar_similaridade) {
+    int *tipo;
+    int *ras;
+    int *cands;
+    float *vetores;
+    Grafo *g_ra;
+    int num_ras;
+    int num_cands;
+    int i;
+    int j;
+    float sim;
+
+    if (!g_bipartido || g_bipartido->num_vertices <= 0) {
+        return NULL;
+    }
+
+    tipo = malloc((size_t)g_bipartido->num_vertices * sizeof(int));
+    ras = malloc((size_t)g_bipartido->num_vertices * sizeof(int));
+    cands = malloc((size_t)g_bipartido->num_vertices * sizeof(int));
+    if (!tipo || !ras || !cands) {
+        free(tipo);
+        free(ras);
+        free(cands);
+        return NULL;
+    }
+
+    if (classificar_vertices_bipartido(g_bipartido, tipo) != 0) {
+        free(tipo);
+        free(ras);
+        free(cands);
+        return NULL;
+    }
+
+    num_ras = 0;
+    num_cands = 0;
+    for (i = 0; i < g_bipartido->num_vertices; i++) {
+        if (g_bipartido->adj[i].num_arestas == 0) {
+            continue;
+        }
+        if (tipo[i] == 0) {
+            ras[num_ras++] = i;
+        } else if (tipo[i] == 1) {
+            cands[num_cands++] = i;
+        }
+    }
+    free(tipo);
+
+    if (num_ras == 0 || num_cands == 0) {
+        free(ras);
+        free(cands);
+        return NULL;
+    }
+
+    vetores = malloc((size_t)(num_ras * num_cands) * sizeof(float));
+    g_ra = criar_grafo(num_ras, 0);
+    if (!vetores || !g_ra) {
+        free(vetores);
+        liberar_grafo(g_ra);
+        free(ras);
+        free(cands);
+        return NULL;
+    }
+
+    for (i = 0; i < num_ras; i++) {
+        if (adicionar_vertice(g_ra, g_bipartido->rotulos[ras[i]]) == -1 ||
+            extrair_vetor_ra(g_bipartido, ras[i], cands, num_cands,
+                             &vetores[i * num_cands]) != 0) {
+            free(vetores);
+            liberar_grafo(g_ra);
+            free(ras);
+            free(cands);
+            return NULL;
+        }
+    }
+
+    for (i = 0; i < num_ras; i++) {
+        for (j = i + 1; j < num_ras; j++) {
+            sim = similaridade_cosseno(&vetores[i * num_cands],
+                                       &vetores[j * num_cands],
+                                       num_cands);
+            if (sim >= limiar_similaridade) {
+                if (adicionar_aresta(g_ra, i, j, sim) != 0) {
+                    free(vetores);
+                    liberar_grafo(g_ra);
+                    free(ras);
+                    free(cands);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    free(vetores);
+    free(ras);
+    free(cands);
+    return g_ra;
+}

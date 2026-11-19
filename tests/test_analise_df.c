@@ -208,6 +208,100 @@ static void test_similaridade_cosseno(void) {
     liberar_grafo(g);
 }
 
+static int contar_arestas_totais(const Grafo *g) {
+    int soma = 0;
+    int i;
+    for (i = 0; i < g->num_vertices; i++) {
+        soma += g->adj[i].num_arestas;
+    }
+    return soma / 2;
+}
+
+static int existe_ligacao(const Grafo *g, const char *a, const char *b) {
+    int ia = buscar_vertice(g, a);
+    int ib = buscar_vertice(g, b);
+    const No *n;
+    if (ia < 0 || ib < 0) {
+        return 0;
+    }
+    for (n = g->adj[ia].cabeca; n != NULL; n = n->prox) {
+        if (n->destino == ib) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void test_gerar_grafo_similaridade_ra(void) {
+    Grafo *g_bip;
+    Grafo *g0;
+    Grafo *g_mid;
+    Grafo *g1;
+    int pp;
+    int ac;
+    int tag;
+    int cei;
+    int sob;
+    int cand_a;
+    int cand_b;
+
+    assert(gerar_grafo_similaridade_ra(NULL, 0.5f) == NULL);
+
+    g_bip = criar_grafo(8, 0);
+    assert(g_bip != NULL);
+
+    pp = adicionar_vertice(g_bip, "Plano Piloto");
+    cand_a = adicionar_vertice(g_bip, "A");
+    cand_b = adicionar_vertice(g_bip, "B");
+    ac = adicionar_vertice(g_bip, "Aguas Claras");
+    tag = adicionar_vertice(g_bip, "Taguatinga");
+    cei = adicionar_vertice(g_bip, "Ceilandia");
+    sob = adicionar_vertice(g_bip, "Sobradinho");
+
+    assert(adicionar_aresta(g_bip, pp, cand_a, 50.0f) == 0);
+    assert(adicionar_aresta(g_bip, pp, cand_b, 30.0f) == 0);
+    assert(adicionar_aresta(g_bip, ac, cand_a, 60.0f) == 0);
+    assert(adicionar_aresta(g_bip, ac, cand_b, 25.0f) == 0);
+    assert(adicionar_aresta(g_bip, tag, cand_a, 30.0f) == 0);
+    assert(adicionar_aresta(g_bip, tag, cand_b, 55.0f) == 0);
+    assert(adicionar_aresta(g_bip, cei, cand_a, 20.0f) == 0);
+    assert(adicionar_aresta(g_bip, cei, cand_b, 65.0f) == 0);
+    assert(adicionar_aresta(g_bip, sob, cand_a, 40.0f) == 0);
+    assert(adicionar_aresta(g_bip, sob, cand_b, 40.0f) == 0);
+
+    g0 = gerar_grafo_similaridade_ra(g_bip, 0.0f);
+    g_mid = gerar_grafo_similaridade_ra(g_bip, 0.95f);
+    g1 = gerar_grafo_similaridade_ra(g_bip, 1.0f);
+
+    /* Libera o bipartido antes para comprovar independencia dos grafos projetados. */
+    liberar_grafo(g_bip);
+
+    assert(g0 != NULL && g_mid != NULL && g1 != NULL);
+    assert(g0->orientado == 0);
+    assert(g0->num_vertices == 5);
+    assert(g_mid->num_vertices == 5);
+    assert(g1->num_vertices == 5);
+
+    /* Limiar 0: grafo completo (5 RAs => 10 arestas). */
+    assert(contar_arestas_totais(g0) == 10);
+
+    /* Limiar 0.95: Taguatinga <-> Ceilandia e Plano Piloto <-> Aguas Claras conectadas. */
+    assert(existe_ligacao(g_mid, "Taguatinga", "Ceilandia"));
+    assert(existe_ligacao(g_mid, "Plano Piloto", "Aguas Claras"));
+    assert(!existe_ligacao(g_mid, "Taguatinga", "Aguas Claras"));
+    assert(contar_arestas_totais(g_mid) < 10 && contar_arestas_totais(g_mid) > 0);
+
+    /* Limiar 1.0: nenhuma aresta (nenhum par tem vetores identicos). */
+    assert(contar_arestas_totais(g1) == 0);
+
+    printf("--- Grafo de similaridade de RAs (limiar 0.95) ---\n");
+    imprimir_grafo(g_mid);
+
+    liberar_grafo(g0);
+    liberar_grafo(g_mid);
+    liberar_grafo(g1);
+}
+
 int main(void) {
     test_arquivo_inexistente();
     test_cabecalho_invalido();
@@ -215,6 +309,7 @@ int main(void) {
     test_linhas_malformadas_ignoradas();
     test_candidatos_dominantes_sintetico();
     test_similaridade_cosseno();
+    test_gerar_grafo_similaridade_ra();
 
     printf("Todos os testes de analise_df passaram!\n");
     return 0;

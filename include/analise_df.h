@@ -73,6 +73,24 @@ int extrair_vetor_ra(const Grafo *g, int ra, const int *candidatos,
                      int num_candidatos, float *saida);
 
 /*
+ * Projeta o grafo bipartido RA x Candidato em um grafo monopartido de RAs,
+ * não-orientado, ligando pares de RAs cuja similaridade de cosseno seja
+ * maior ou igual a `limiar_similaridade`.
+ *
+ * O grafo retornado possui cópias próprias dos rótulos das RAs, sendo
+ * totalmente independente de `g_bipartido` (deve ser liberado com
+ * liberar_grafo).
+ *
+ * Parâmetros:
+ *   g_bipartido: grafo bipartido RA x Candidato.
+ *   limiar_similaridade: valor mínimo de similaridade para criar aresta.
+ * Retorno:
+ *   Ponteiro para o novo Grafo de RAs, ou NULL em caso de erro.
+ */
+Grafo *gerar_grafo_similaridade_ra(const Grafo *g_bipartido,
+                                   float limiar_similaridade);
+
+/*
  * Eixo nacional (src/analise_nacional.c; formatos em docs/formato_csv.md).
  * Ambos retornam um Grafo não-orientado que o chamador libera com
  * liberar_grafo, ou NULL em caso de erro.
