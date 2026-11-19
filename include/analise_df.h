@@ -45,6 +45,34 @@ Grafo *construir_grafo_bipartido_df(const char *caminho);
 void candidatos_dominantes_por_ra(const Grafo *g);
 
 /*
+ * Calcula a similaridade de cosseno entre dois vetores de tamanho `n`.
+ *
+ * Justificativa da métrica:
+ *   Cada RA é representada por um vetor de percentuais de voto na mesma ordem
+ *   de candidatos. A similaridade de cosseno mede o ângulo entre esses perfis
+ *   (intervalo [0, 1] para percentuais não-negativos), capturando a proporção
+ *   relativa entre candidatos mesmo quando a soma dos percentuais varia entre
+ *   RAs (ex.: votos em outros candidatos ou brancos/nulos), sendo adequada para
+ *   a projeção ponderada do grafo bipartido sobre o conjunto de RAs.
+ *
+ * Parâmetros:
+ *   a, b: vetores de tamanho `n`.
+ *   n: dimensão dos vetores (deve ser > 0).
+ * Retorno:
+ *   Similaridade de cosseno em [0.0, 1.0] (ou [-1.0, 1.0] em geral), ou 0.0f
+ *   se `a` ou `b` forem NULL, se `n <= 0` ou se algum vetor tiver norma zero.
+ */
+float similaridade_cosseno(const float *a, const float *b, int n);
+
+/*
+ * Extrai o vetor de percentuais de uma RA sobre os `num_candidatos` índices
+ * em `candidatos` (na mesma ordem), preenchendo `saida` (tamanho `num_candidatos`).
+ * Retorna 0 em sucesso ou -1 em caso de parâmetros inválidos.
+ */
+int extrair_vetor_ra(const Grafo *g, int ra, const int *candidatos,
+                     int num_candidatos, float *saida);
+
+/*
  * Eixo nacional (src/analise_nacional.c; formatos em docs/formato_csv.md).
  * Ambos retornam um Grafo não-orientado que o chamador libera com
  * liberar_grafo, ou NULL em caso de erro.

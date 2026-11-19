@@ -148,12 +148,73 @@ static void test_candidatos_dominantes_sintetico(void) {
     liberar_grafo(g);
 }
 
+static void test_similaridade_cosseno(void) {
+    static const char *cands_nomes[3] = {
+        "CELINA LEAO HIZIM FERREIRA",
+        "LEANDRO ANTÔNIO GRASS PEIXOTO",
+        "PAULA MORENO PARO BELMONTE"
+    };
+    float zero[3] = {0.0f, 0.0f, 0.0f};
+    float u[3] = {1.0f, 0.0f, 0.0f};
+    float v[3] = {0.0f, 1.0f, 0.0f};
+    float vet_ac[3];
+    float vet_an[3];
+    float vet_cei[3];
+    float vet_gama[3];
+    int cands_idx[3];
+    Grafo *g;
+    int i;
+    float sim_ac_gama;
+    float sim_ac_an;
+    float sim_an_cei;
+
+    /* Casos extremos: NULL, n <= 0, vetor nulo, identicos e ortogonais. */
+    assert(fabs((double)similaridade_cosseno(NULL, u, 3)) < 1e-6);
+    assert(fabs((double)similaridade_cosseno(u, NULL, 3)) < 1e-6);
+    assert(fabs((double)similaridade_cosseno(u, u, 0)) < 1e-6);
+    assert(fabs((double)similaridade_cosseno(zero, u, 3)) < 1e-6);
+    assert(fabs((double)similaridade_cosseno(u, zero, 3)) < 1e-6);
+    assert(fabs((double)(similaridade_cosseno(u, u, 3) - 1.0f)) < 1e-6);
+    assert(fabs((double)similaridade_cosseno(u, v, 3)) < 1e-6);
+
+    /* Conferencia com calculo manual no dataset sintetico (tolerancia 0.001). */
+    g = construir_grafo_bipartido_df(CSV_SINTETICO);
+    assert(g != NULL);
+
+    for (i = 0; i < 3; i++) {
+        cands_idx[i] = buscar_vertice(g, cands_nomes[i]);
+        assert(cands_idx[i] >= 0);
+    }
+
+    assert(extrair_vetor_ra(g, buscar_vertice(g, "Aguas Claras"), cands_idx, 3, vet_ac) == 0);
+    assert(extrair_vetor_ra(g, buscar_vertice(g, "Asa Norte"), cands_idx, 3, vet_an) == 0);
+    assert(extrair_vetor_ra(g, buscar_vertice(g, "Ceilandia"), cands_idx, 3, vet_cei) == 0);
+    assert(extrair_vetor_ra(g, buscar_vertice(g, "Gama"), cands_idx, 3, vet_gama) == 0);
+
+    sim_ac_gama = similaridade_cosseno(vet_ac, vet_gama, 3);
+    sim_ac_an = similaridade_cosseno(vet_ac, vet_an, 3);
+    sim_an_cei = similaridade_cosseno(vet_an, vet_cei, 3);
+
+    /*
+     * Valores calculados a mao (tolerancia 0.001):
+     * - Aguas Claras x Gama:   3681.6217 / (60.2524 * 61.1406) = 0.999391
+     * - Aguas Claras x Asa N.: 3467.1509 / (60.2524 * 59.6717) = 0.964341
+     * - Asa Norte x Ceilandia: 3492.4444 / (59.6717 * 62.6951) = 0.933528
+     */
+    assert(fabs((double)(sim_ac_gama - 0.999391f)) < 0.001);
+    assert(fabs((double)(sim_ac_an - 0.964341f)) < 0.001);
+    assert(fabs((double)(sim_an_cei - 0.933528f)) < 0.001);
+
+    liberar_grafo(g);
+}
+
 int main(void) {
     test_arquivo_inexistente();
     test_cabecalho_invalido();
     test_dataset_sintetico();
     test_linhas_malformadas_ignoradas();
     test_candidatos_dominantes_sintetico();
+    test_similaridade_cosseno();
 
     printf("Todos os testes de analise_df passaram!\n");
     return 0;

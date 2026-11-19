@@ -330,3 +330,70 @@ void candidatos_dominantes_por_ra(const Grafo *g) {
 
     free(tipo);
 }
+
+/*
+ * Métrica escolhida: Similaridade de Cosseno.
+ * Justificativa: representa cada RA como um vetor de percentuais na mesma
+ * ordem de candidatos e mede o cosseno do ângulo entre dois perfis eleitorais.
+ * É invariante a pequenas diferenças na soma total dos percentuais entre RAs
+ * (como votos brancos/nulos ou candidatos menores) e produz pesos contínuos
+ * em [0, 1] adequados para projetar o grafo bipartido em um grafo de RAs.
+ */
+float similaridade_cosseno(const float *a, const float *b, int n) {
+    double produto_escalar;
+    double norma_a;
+    double norma_b;
+    double denom;
+    int i;
+
+    if (!a || !b || n <= 0) {
+        return 0.0f;
+    }
+
+    produto_escalar = 0.0;
+    norma_a = 0.0;
+    norma_b = 0.0;
+
+    for (i = 0; i < n; i++) {
+        produto_escalar += (double)a[i] * (double)b[i];
+        norma_a += (double)a[i] * (double)a[i];
+        norma_b += (double)b[i] * (double)b[i];
+    }
+
+    if (norma_a <= 0.0 || norma_b <= 0.0) {
+        return 0.0f;
+    }
+
+    denom = sqrt(norma_a) * sqrt(norma_b);
+    if (denom <= 0.0) {
+        return 0.0f;
+    }
+
+    return (float)(produto_escalar / denom);
+}
+
+int extrair_vetor_ra(const Grafo *g, int ra, const int *candidatos,
+                     int num_candidatos, float *saida) {
+    const No *atual;
+    int i;
+
+    if (!g || !candidatos || !saida || num_candidatos <= 0 ||
+        ra < 0 || ra >= g->num_vertices) {
+        return -1;
+    }
+
+    for (i = 0; i < num_candidatos; i++) {
+        saida[i] = 0.0f;
+    }
+
+    for (atual = g->adj[ra].cabeca; atual != NULL; atual = atual->prox) {
+        for (i = 0; i < num_candidatos; i++) {
+            if (atual->destino == candidatos[i]) {
+                saida[i] = atual->peso;
+                break;
+            }
+        }
+    }
+
+    return 0;
+}
