@@ -1,6 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,10 +22,11 @@ static void remover_quebra_de_linha(char *linha) {
  * Retorna 1 se a linha lida estava truncada (sem '\n' e fora do fim de arquivo).
  */
 static int linha_truncada(FILE *f, const char *linha) {
+    int c;
+
     if (strchr(linha, '\n') != NULL || feof(f)) {
         return 0;
     }
-    int c;
     while ((c = fgetc(f)) != EOF && c != '\n') {
         /* consome o resto da linha */
     }
@@ -37,12 +35,15 @@ static int linha_truncada(FILE *f, const char *linha) {
 
 /* Converte `texto` em percentual válido [0, 100]. Retorna 0 se OK, -1 se inválido. */
 static int parse_percentual(const char *texto, float *saida) {
+    char *fim = NULL;
+    double v;
+
     if (!texto || *texto == '\0') {
         return -1;
     }
-    char *fim = NULL;
-    double v = strtod(texto, &fim);
-    if (fim == texto || *fim != '\0' || !isfinite(v) || v < 0.0 || v > 100.0) {
+    v = strtod(texto, &fim);
+    /* `v != v` detecta NaN (isfinite e C99); infinito cai em v > 100. */
+    if (fim == texto || *fim != '\0' || v != v || v < 0.0 || v > 100.0) {
         return -1;
     }
     *saida = (float)v;
@@ -54,7 +55,10 @@ static int parse_percentual(const char *texto, float *saida) {
  * modificada). Retorna a quantidade de candidatos (>= 1) ou -1 se inválido.
  */
 static int ler_cabecalho(char *linha, char *nomes[MAX_CANDIDATOS]) {
-    char *tok = strtok(linha, SEPARADOR);
+    char *tok;
+    int n = 0;
+
+    tok = strtok(linha, SEPARADOR);
     if (!tok) {
         return -1;
     }
@@ -67,7 +71,6 @@ static int ler_cabecalho(char *linha, char *nomes[MAX_CANDIDATOS]) {
         return -1;
     }
 
-    int n = 0;
     while ((tok = strtok(NULL, SEPARADOR)) != NULL) {
         if (n == MAX_CANDIDATOS || *tok == '\0') {
             return -1;
@@ -87,19 +90,32 @@ static int obter_ou_criar_vertice(Grafo *g, const char *rotulo) {
 }
 
 Grafo *construir_grafo_bipartido_df(const char *caminho) {
+    FILE *f;
+    Grafo *g;
+    char linha[TAM_LINHA];
+    /* `cabecalho` precisa viver até o fim, pois `candidatos[]` aponta para ele. */
+    char cabecalho[TAM_LINHA];
+    char *candidatos[MAX_CANDIDATOS];
+    float pesos[MAX_CANDIDATOS];
+    char *nome_ra;
+    char *tok;
+    int num_candidatos;
+    int num_linha;
+    int lidos;
+    int valida;
+    int ra;
+    int cand;
+    int i;
+
     if (!caminho) {
         return NULL;
     }
 
-    FILE *f = fopen(caminho, "r");
+    f = fopen(caminho, "r");
     if (!f) {
         fprintf(stderr, "Erro: nao foi possivel abrir '%s'\n", caminho);
         return NULL;
     }
-
-    char linha[TAM_LINHA];
-    char *candidatos[MAX_CANDIDATOS];
-    int num_candidatos;
 
     /* Cabeçalho (os nomes dos candidatos vêm dele). */
     if (!fgets(linha, sizeof(linha), f) || linha_truncada(f, linha)) {
@@ -109,8 +125,6 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
     }
     remover_quebra_de_linha(linha);
 
-    /* `cabecalho` precisa viver até o fim, pois `candidatos[]` aponta para ele. */
-    char cabecalho[TAM_LINHA];
     strcpy(cabecalho, linha);
     num_candidatos = ler_cabecalho(cabecalho, candidatos);
     if (num_candidatos < 0) {
@@ -120,14 +134,14 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
         return NULL;
     }
 
-    Grafo *g = criar_grafo(32, 0);
+    g = criar_grafo(32, 0);
     if (!g) {
         fprintf(stderr, "Erro: falha ao alocar o grafo\n");
         fclose(f);
         return NULL;
     }
 
-    int num_linha = 1;
+    num_linha = 1;
     while (fgets(linha, sizeof(linha), f)) {
         num_linha++;
 
@@ -143,12 +157,10 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
 
         /* Tokeniza: strtok colapsa campos vazios, o que muda a contagem e a
          * linha é rejeitada abaixo (nunca desalinha colunas silenciosamente). */
-        char *nome_ra = strtok(linha, SEPARADOR);
-        float pesos[MAX_CANDIDATOS];
-        int lidos = 0;
-        int valida = (nome_ra != NULL && *nome_ra != '\0');
+        nome_ra = strtok(linha, SEPARADOR);
+        lidos = 0;
+        valida = (nome_ra != NULL && *nome_ra != '\0');
 
-        char *tok;
         while (valida && (tok = strtok(NULL, SEPARADOR)) != NULL) {
             if (lidos == num_candidatos || parse_percentual(tok, &pesos[lidos]) != 0) {
                 valida = 0;
@@ -161,7 +173,7 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
             continue;
         }
 
-        int ra = obter_ou_criar_vertice(g, nome_ra);
+        ra = obter_ou_criar_vertice(g, nome_ra);
         if (ra == -1) {
             fprintf(stderr, "Erro: falha ao criar o vertice da RA '%s'\n", nome_ra);
             liberar_grafo(g);
@@ -169,8 +181,8 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
             return NULL;
         }
 
-        for (int i = 0; i < num_candidatos; i++) {
-            int cand = obter_ou_criar_vertice(g, candidatos[i]);
+        for (i = 0; i < num_candidatos; i++) {
+            cand = obter_ou_criar_vertice(g, candidatos[i]);
             if (cand == -1 || adicionar_aresta(g, ra, cand, pesos[i]) != 0) {
                 fprintf(stderr, "Erro: falha ao ligar '%s' a '%s'\n", nome_ra, candidatos[i]);
                 liberar_grafo(g);

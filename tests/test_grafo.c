@@ -16,10 +16,12 @@ static int contem_aresta(const Lista *lista, int destino, float peso) {
 }
 
 static void test_grafo_vazio(void) {
+    Grafo *g;
+
     assert(criar_grafo(0, 0) == NULL);
     assert(criar_grafo(-5, 1) == NULL);
 
-    Grafo *g = criar_grafo(4, 0);
+    g = criar_grafo(4, 0);
     assert(g != NULL);
     assert(g->num_vertices == 0);
     assert(g->capacidade == 4);
@@ -63,12 +65,15 @@ static void test_vertice_duplicado(void) {
 }
 
 static void test_aresta_nao_orientada_e_repetida(void) {
-    Grafo *g = criar_grafo(4, 0);
+    Grafo *g;
+    int df, go, mg;
+
+    g = criar_grafo(4, 0);
     assert(g != NULL);
 
-    int df = adicionar_vertice(g, "DF");
-    int go = adicionar_vertice(g, "GO");
-    int mg = adicionar_vertice(g, "MG");
+    df = adicionar_vertice(g, "DF");
+    go = adicionar_vertice(g, "GO");
+    mg = adicionar_vertice(g, "MG");
     assert(df == 0 && go == 1 && mg == 2);
 
     assert(adicionar_aresta(g, df, go, 12.5f) == 0);
@@ -92,11 +97,14 @@ static void test_aresta_nao_orientada_e_repetida(void) {
 }
 
 static void test_aresta_orientada(void) {
-    Grafo *g = criar_grafo(4, 1);
+    Grafo *g;
+    int a, b;
+
+    g = criar_grafo(4, 1);
     assert(g != NULL);
 
-    int a = adicionar_vertice(g, "A");
-    int b = adicionar_vertice(g, "B");
+    a = adicionar_vertice(g, "A");
+    b = adicionar_vertice(g, "B");
     assert(adicionar_aresta(g, a, b, 3.0f) == 0);
 
     assert(g->adj[a].num_arestas == 1);
@@ -108,13 +116,16 @@ static void test_aresta_orientada(void) {
 }
 
 static void test_crescimento_dinamico(void) {
-    Grafo *g = criar_grafo(2, 0);
+    Grafo *g;
+    char nome[16];
+    int i, idx;
+
+    g = criar_grafo(2, 0);
     assert(g != NULL);
 
-    char nome[16];
-    for (int i = 0; i < 100; i++) {
-        snprintf(nome, sizeof(nome), "V%02d", i);
-        int idx = adicionar_vertice(g, nome);
+    for (i = 0; i < 100; i++) {
+        sprintf(nome, "V%02d", i); /* snprintf e C99; "V%02d" cabe em 16 bytes */
+        idx = adicionar_vertice(g, nome);
         assert(idx == i);
     }
 

@@ -13,12 +13,14 @@
 static int tem_aresta(const Grafo *g, const char *a, const char *b, float peso) {
     int ia = buscar_vertice(g, a);
     int ib = buscar_vertice(g, b);
+    const No *n;
+
     if (ia < 0 || ib < 0) {
         return 0;
     }
-    for (const No *n = g->adj[ia].cabeca; n != NULL; n = n->prox) {
+    for (n = g->adj[ia].cabeca; n != NULL; n = n->prox) {
         if (n->destino == ib) {
-            return fabsf(n->peso - peso) < 1e-4f;
+            return fabs((double)(n->peso - peso)) < 1e-4;
         }
     }
     return 0;
@@ -40,21 +42,23 @@ static void test_dataset_sintetico(void) {
     /* Tabela esperada (percentuais por RA x candidato). */
     static const float esperado[5][3] = {
         {48.09f, 35.45f, 7.81f}, {36.68f, 46.62f, 6.47f}, {53.35f, 31.70f, 8.92f},
-        {43.77f, 38.77f, 7.06f}, {49.46f, 34.67f, 9.48f},
+        {43.77f, 38.77f, 7.06f}, {49.46f, 34.67f, 9.48f}
     };
+    Grafo *g;
+    int total_arestas_ras = 0;
+    int i, j, k, ra, c;
 
-    Grafo *g = construir_grafo_bipartido_df(CSV_SINTETICO);
+    g = construir_grafo_bipartido_df(CSV_SINTETICO);
     assert(g != NULL);
     assert(g->orientado == 0);
     assert(g->num_vertices == 8); /* 5 RAs + 3 candidatos */
 
-    int total_arestas_ras = 0;
-    for (int i = 0; i < 5; i++) {
-        int ra = buscar_vertice(g, ras[i]);
+    for (i = 0; i < 5; i++) {
+        ra = buscar_vertice(g, ras[i]);
         assert(ra >= 0);
         assert(g->adj[ra].num_arestas == 3);
         total_arestas_ras += g->adj[ra].num_arestas;
-        for (int j = 0; j < 3; j++) {
+        for (j = 0; j < 3; j++) {
             assert(tem_aresta(g, ras[i], cands[j], esperado[i][j]));
             assert(tem_aresta(g, cands[j], ras[i], esperado[i][j])); /* simétrica */
         }
@@ -62,10 +66,10 @@ static void test_dataset_sintetico(void) {
     assert(total_arestas_ras == 15);
 
     /* Bipartição: nenhum candidato ligado a candidato, nenhuma RA ligada a RA. */
-    for (int j = 0; j < 3; j++) {
-        int c = buscar_vertice(g, cands[j]);
+    for (j = 0; j < 3; j++) {
+        c = buscar_vertice(g, cands[j]);
         assert(c >= 0 && g->adj[c].num_arestas == 5);
-        for (int k = 0; k < 3; k++) {
+        for (k = 0; k < 3; k++) {
             assert(!tem_aresta(g, cands[j], cands[k], 0.0f) || j == k);
         }
     }
