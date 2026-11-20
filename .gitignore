@@ -1,0 +1,13 @@
+# Binários e objetos compilados
+*.exe
+*.o
+eleicoes_grafos
+test_grafo
+test_analise_df
+test_nacional
+
+# Arquivos brutos do TSE / IBGE / TRE-DF (não versionar)
+dados/brutos/
+*.zip
+votacao_secao_*.csv
+consulta_cand_*.csv
