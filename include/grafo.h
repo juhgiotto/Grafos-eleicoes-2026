@@ -91,4 +91,7 @@ void liberar_grafo(Grafo *g);
 /* BFS por camadas a partir de 'origem' (issue #9). */
 void busca_largura_propagacao_fronteiras(Grafo *g, int origem);
 
+/* AGM de G_Pres via Kruskal + Union-Find (issue #11). */
+void calcular_mst_eleitoral_kruskal(Grafo *g);
+
 #endif /* GRAFO_H */

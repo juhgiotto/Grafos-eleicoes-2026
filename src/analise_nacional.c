@@ -295,3 +295,124 @@ void busca_profundidade_clusters(Grafo *g_pres, float limiar_corte) {
     free(visitado);
     free(pilha);
 }
+
+/*
+ * #11 - AGM de G_Pres com Kruskal + Union-Find.
+ *
+ * Coleta cada aresta uma vez (u < v em grafo nao-orientado), ordena por peso
+ * crescente (qsort) e aceita a aresta se ela ligar componentes diferentes
+ * (find(u) != find(v)). Para ao atingir V-1 arestas. Se o grafo for
+ * desconexo, o resultado e uma floresta geradora minima (menos de V-1 arestas).
+ */
+typedef struct {
+    int u, v;
+    float peso;
+} ArestaKruskal;
+
+/* Peso crescente; empate desfeito por (u, v) para a saida ser deterministica. */
+static int nac_comparar_arestas(const void *a, const void *b) {
+    const ArestaKruskal *x = (const ArestaKruskal *)a;
+    const ArestaKruskal *y = (const ArestaKruskal *)b;
+
+    if (x->peso < y->peso) {
+        return -1;
+    }
+    if (x->peso > y->peso) {
+        return 1;
+    }
+    if (x->u != y->u) {
+        return x->u - y->u;
+    }
+    return x->v - y->v;
+}
+
+/* find com compressao de caminho. */
+static int nac_uf_find(int *pai, int x) {
+    if (pai[x] != x) {
+        pai[x] = nac_uf_find(pai, pai[x]);
+    }
+    return pai[x];
+}
+
+static void nac_uf_union(int *pai, int a, int b) {
+    pai[nac_uf_find(pai, a)] = nac_uf_find(pai, b);
+}
+
+void calcular_mst_eleitoral_kruskal(Grafo *g_pres) {
+    int n, total, qtd, i, u, v, escolhidas;
+    float peso_total;
+    int *pai;
+    ArestaKruskal *arestas;
+    const No *a;
+
+    if (g_pres == NULL) {
+        fprintf(stderr, "Kruskal: grafo nulo.\n");
+        return;
+    }
+
+    n = g_pres->num_vertices;
+    if (n <= 0) {
+        fprintf(stderr, "Kruskal: grafo vazio.\n");
+        return;
+    }
+
+    /* 1. Coleta das arestas (sem duplicar u-v e v-u). */
+    total = 0;
+    for (u = 0; u < n; u++) {
+        total += g_pres->adj[u].num_arestas;
+    }
+    arestas = malloc((size_t)(total > 0 ? total : 1) * sizeof(ArestaKruskal));
+    pai = malloc((size_t)n * sizeof(int));
+    if (arestas == NULL || pai == NULL) {
+        fprintf(stderr, "Kruskal: falha de memoria.\n");
+        free(arestas);
+        free(pai);
+        return;
+    }
+
+    qtd = 0;
+    for (u = 0; u < n; u++) {
+        for (a = g_pres->adj[u].cabeca; a != NULL; a = a->prox) {
+            if (g_pres->orientado || u < a->destino) {
+                arestas[qtd].u = u;
+                arestas[qtd].v = a->destino;
+                arestas[qtd].peso = a->peso;
+                qtd++;
+            }
+        }
+    }
+
+    /* 2. Ordenacao por peso crescente. */
+    qsort(arestas, (size_t)qtd, sizeof(ArestaKruskal), nac_comparar_arestas);
+
+    /* 3. Union-Find: cada vertice comeca como sua propria raiz. */
+    for (i = 0; i < n; i++) {
+        pai[i] = i;
+    }
+
+    /* 4-5. Selecao das arestas da AGM; para ao atingir V-1. */
+    escolhidas = 0;
+    peso_total = 0.0f;
+    printf("AGM (Kruskal) de G_Pres:\n");
+    for (i = 0; i < qtd && escolhidas < n - 1; i++) {
+        u = arestas[i].u;
+        v = arestas[i].v;
+        if (nac_uf_find(pai, u) != nac_uf_find(pai, v)) {
+            nac_uf_union(pai, u, v);
+            printf("  %s - %s (peso %.4f)\n", g_pres->rotulos[u], g_pres->rotulos[v],
+                   arestas[i].peso);
+            peso_total += arestas[i].peso;
+            escolhidas++;
+        }
+    }
+
+    /* 6. Resultado. */
+    printf("Arestas na AGM: %d (esperado V-1 = %d)\n", escolhidas, n - 1);
+    printf("Peso total: %.4f\n", peso_total);
+    if (escolhidas < n - 1) {
+        printf("Aviso: grafo desconexo; resultado e uma floresta geradora minima.\n");
+    }
+
+    free(pai);
+    free(arestas);
+}
