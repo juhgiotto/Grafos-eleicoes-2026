@@ -1,3 +1,12 @@
+/*
+ * =========================================================================
+ * Modulo: Eixo DF (src/analise_df.c)
+ * Papel : Analise das votacoes para Governador nas RAs do Distrito Federal.
+ * Teoria: Grafo Bipartido (RA x Candidato), 2-coloracao (BFS), Similaridade
+ *         de Cosseno e Projecao Monopartida entre RAs.
+ * =========================================================================
+ */
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,10 +15,14 @@
 #include "../include/analise_df.h"
 #include "../include/grafo.h"
 
-#define TAM_LINHA 4096        /* tamanho máximo de uma linha do CSV */
-#define MAX_CANDIDATOS 64     /* máximo de colunas de candidatos aceitas */
+#define TAM_LINHA 4096        /* tamanho maximo de uma linha do CSV */
+#define MAX_CANDIDATOS 64     /* maximo de colunas de candidatos aceitas */
 #define SEPARADOR ";"
-#define EPSILON_EMPATE 1e-4   /* tolerância para considerar empate entre percentuais */
+#define EPSILON_EMPATE 1e-4   /* tolerancia para considerar empate entre percentuais */
+
+/* =========================================================================
+ * Parsing e Validacao de CSV (Grafo Bipartido)
+ * ========================================================================= */
 
 /* Remove '\n' e '\r' do final da linha (suporta LF e CRLF). */
 static void remover_quebra_de_linha(char *linha) {
@@ -91,6 +104,11 @@ static int obter_ou_criar_vertice(Grafo *g, const char *rotulo) {
     return adicionar_vertice(g, rotulo);
 }
 
+/*
+ * Objetivo     : Carrega o CSV de votacao do DF em um grafo bipartido.
+ * Estrutura    : Grafo nao-orientado e ponderado (particoes: RAs e Candidatos).
+ * Detalhe-Chave: Rejeita linhas malformadas e mantem pesos como % de votos.
+ */
 Grafo *construir_grafo_bipartido_df(const char *caminho) {
     FILE *f;
     Grafo *g;
@@ -198,13 +216,11 @@ Grafo *construir_grafo_bipartido_df(const char *caminho) {
     return g;
 }
 
-/*
- * Classifica os vértices de um grafo bipartido em duas partições (0 = RA,
- * 1 = Candidato) via BFS, assumindo que o primeiro vértice com arestas
- * pertence à partição 0 (RA).
- * Retorna 0 em caso de sucesso, ou -1 se o grafo não for bipartido ou em
- * falha de alocação.
- */
+/* =========================================================================
+ * Candidatos Dominantes por RA (Coloracao Bipartite + Maior Peso)
+ * ========================================================================= */
+
+/* Particiona o grafo via BFS (0 = RA, 1 = Candidato). Retorna -1 se nao for bipartido. */
 static int classificar_vertices_bipartido(const Grafo *g, int *tipo) {
     int *fila;
     int ini;
@@ -249,10 +265,7 @@ static int classificar_vertices_bipartido(const Grafo *g, int *tipo) {
     return 0;
 }
 
-/*
- * Imprime o candidato dominante (ou todos os empatados, se houver empate
- * dentro de EPSILON_EMPATE) para o vértice `ra`.
- */
+/* Imprime o vencedor da RA ou todos os empatados dentro de EPSILON_EMPATE. */
 static void imprimir_vencedor_ra(const Grafo *g, int ra) {
     const No *atual;
     float max_peso;
@@ -302,6 +315,12 @@ static void imprimir_vencedor_ra(const Grafo *g, int ra) {
     }
 }
 
+/*
+ * Objetivo     : Identifica o candidato vencedor (ou empate) em cada RA.
+ * Algoritmo    : 2-coloracao via BFS separa RAs de candidatos; em seguida
+ *                busca a aresta de maior peso na lista de cada RA.
+ * Detalhe-Chave: Empates com diferenca < EPSILON_EMPATE (1e-4) sao listados.
+ */
 void candidatos_dominantes_por_ra(const Grafo *g) {
     int *tipo;
     int i;
@@ -331,13 +350,14 @@ void candidatos_dominantes_por_ra(const Grafo *g) {
     free(tipo);
 }
 
+/* =========================================================================
+ * Similaridade de Cosseno e Projecao Monopartida de RAs
+ * ========================================================================= */
+
 /*
- * Métrica escolhida: Similaridade de Cosseno.
- * Justificativa: representa cada RA como um vetor de percentuais na mesma
- * ordem de candidatos e mede o cosseno do ângulo entre dois perfis eleitorais.
- * É invariante a pequenas diferenças na soma total dos percentuais entre RAs
- * (como votos brancos/nulos ou candidatos menores) e produz pesos contínuos
- * em [0, 1] adequados para projetar o grafo bipartido em um grafo de RAs.
+ * Objetivo     : Mede a proximidade do perfil de votos entre duas RAs.
+ * Algoritmo    : Produto escalar dividido pelo produto das normas (em double).
+ * Detalhe-Chave: Retorna 0.0f para vetor nulo; resultado em [0, 1].
  */
 float similaridade_cosseno(const float *a, const float *b, int n) {
     double produto_escalar;
@@ -398,6 +418,12 @@ int extrair_vetor_ra(const Grafo *g, int ra, const int *candidatos,
     return 0;
 }
 
+/*
+ * Objetivo     : Projeta o grafo bipartido em um grafo monopartido so de RAs.
+ * Algoritmo    : Para cada par (i, j) com i < j, calcula similaridade_cosseno
+ *                e cria aresta se sim >= limiar_similaridade.
+ * Detalhe-Chave: Grafo independente do original (copia propria dos rotulos).
+ */
 Grafo *gerar_grafo_similaridade_ra(const Grafo *g_bipartido,
                                    float limiar_similaridade) {
     int *tipo;

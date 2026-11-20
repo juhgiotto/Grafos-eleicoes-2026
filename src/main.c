@@ -1,3 +1,13 @@
+/*
+ * =========================================================================
+ * Modulo: Orquestracao e Interface CLI (src/main.c)
+ * Papel : Ponto de entrada do programa. Recebe os CSVs por linha de comando,
+ *         exibe o menu interativo e integra os eixos DF e Nacional.
+ * Teoria: Ciclo completo de carga, processamento em grafos e liberacao de
+ *         memoria sem vazamentos.
+ * =========================================================================
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +18,10 @@
 
 #define TAM_ENTRADA 128
 
-/* Remove '\n' e '\r' do final de uma string lida com fgets. */
+/* =========================================================================
+ * Utilitarios de Entrada Segura (stdin)
+ * ========================================================================= */
+
 static void limpar_quebra(char *s) {
     size_t n = strlen(s);
     while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r')) {
@@ -16,9 +29,7 @@ static void limpar_quebra(char *s) {
     }
 }
 
-/*
- * Le um inteiro da entrada padrao. Retorna 1 em sucesso e 0 em EOF/invalido.
- */
+/* Retorna 1 se leu, 0 em EOF, -1 se entrada invalida. */
 static int ler_inteiro(const char *prompt, int *saida) {
     char buf[TAM_ENTRADA];
     char *fim;
@@ -40,9 +51,7 @@ static int ler_inteiro(const char *prompt, int *saida) {
     return 1;
 }
 
-/*
- * Le um float da entrada padrao. Retorna 1 em sucesso, 0 em EOF, -1 se invalido.
- */
+/* Retorna 1 se leu, 0 em EOF, -1 se entrada invalida. */
 static int ler_float(const char *prompt, float *saida) {
     char buf[TAM_ENTRADA];
     char *fim;
@@ -64,6 +73,15 @@ static int ler_float(const char *prompt, float *saida) {
     return 1;
 }
 
+/* =========================================================================
+ * Execucao dos Eixos de Analise (DF e Nacional)
+ * ========================================================================= */
+
+/*
+ * Objetivo     : Executa o fluxo completo do Eixo DF sobre o CSV de governador.
+ * Fluxo        : Bipartido (RA x Candidato) -> Dominantes -> Projecao de RAs.
+ * Detalhe-Chave: Ambos os grafos sao liberados ao fim da execucao.
+ */
 static void executar_eixo_df(const char *csv_df) {
     Grafo *g_bip;
     Grafo *g_sim;
@@ -88,6 +106,7 @@ static void executar_eixo_df(const char *csv_df) {
         limiar = 0.95f;
     }
 
+    /* Projeta o grafo bipartido em um grafo monopartido apenas com as RAs */
     g_sim = gerar_grafo_similaridade_ra(g_bip, limiar);
     if (g_sim) {
         printf("\n--- Grafo de similaridade entre RAs (limiar >= %.2f) ---\n",
@@ -101,6 +120,11 @@ static void executar_eixo_df(const char *csv_df) {
     liberar_grafo(g_bip);
 }
 
+/*
+ * Objetivo     : Executa o fluxo completo do Eixo Nacional (27 UFs).
+ * Fluxo        : G_Terr (BFS de fronteiras) + G_Pres (DFS clusters e Kruskal).
+ * Detalhe-Chave: Libera g_terr e g_pres independentemente de falhas parciais.
+ */
 static void executar_eixo_nacional(const char *csv_fronteiras,
                                    const char *csv_presidente) {
     Grafo *g_terr;
@@ -147,6 +171,10 @@ static void executar_eixo_nacional(const char *csv_fronteiras,
     liberar_grafo(g_terr);
     liberar_grafo(g_pres);
 }
+
+/* =========================================================================
+ * Menu Principal
+ * ========================================================================= */
 
 static void imprimir_uso(const char *prog) {
     fprintf(stderr,

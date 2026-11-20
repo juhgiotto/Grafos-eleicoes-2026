@@ -1,3 +1,12 @@
+/*
+ * =========================================================================
+ * Modulo: Eixo Nacional (src/analise_nacional.c)
+ * Papel : Carga e analise dos grafos interestaduais (27 UFs do Brasil).
+ * Teoria: Grafo Territorial (G_Terr), Grafo Completo de Distancia Eleitoral
+ *         (G_Pres), Clusters via DFS e AGM via Kruskal + Union-Find.
+ * =========================================================================
+ */
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,10 +15,14 @@
 #include "../include/analise_df.h"
 #include "../include/grafo.h"
 
-#define TAM_LINHA_NAC 4096    /* tamanho máximo de uma linha do CSV */
-#define MAX_CAND_NAC 64       /* máximo de colunas de candidatos aceitas */
-#define MAX_UFS_NAC 32        /* máximo de UFs aceitas no CSV de votos */
-#define UF_EXTERIOR "ZZ"      /* voto no exterior: não é UF, é ignorado */
+#define TAM_LINHA_NAC 4096    /* tamanho maximo de uma linha do CSV */
+#define MAX_CAND_NAC 64       /* maximo de colunas de candidatos aceitas */
+#define MAX_UFS_NAC 32        /* maximo de UFs aceitas no CSV de votos */
+#define UF_EXTERIOR "ZZ"      /* voto no exterior: nao e UF, e ignorado */
+
+/* =========================================================================
+ * Utilitarios de Leitura e Carga dos Grafos (G_Terr e G_Pres)
+ * ========================================================================= */
 
 /* Remove '\n' e '\r' do final da linha (suporta LF e CRLF). */
 static void nac_remover_quebra(char *linha) {
@@ -228,16 +241,15 @@ Grafo *carregar_g_pres(const char *caminho) {
     return g;
 }
 
+/* =========================================================================
+ * Busca em Profundidade (DFS) — Clusters de Alinhamento Eleitoral (#10)
+ * ========================================================================= */
+
 /*
- * #10 - Clusters regionais de votacao alinhada (DFS em G_Pres filtrado).
- *
- * Criterio do limiar: o peso de cada aresta de G_Pres e a DISTANCIA euclidiana
- * entre os vetores de percentuais de duas UFs (quanto menor, mais parecidas).
- * Logo o filtro e por distancia (<=): a DFS so atravessa a aresta (u, v) se
- * peso <= limiar_corte. Cada componente conexa do grafo filtrado e um cluster.
- *   - limiar >= maior distancia do grafo -> 1 componente (todas as UFs juntas);
- *   - limiar menor que a menor distancia (ex.: 0) -> 1 componente por UF.
- * A DFS usa pilha explicita; um vertice e marcado como visitado ao ser empilhado.
+ * Objetivo     : Agrupa UFs em clusters com padrao de voto presidencial proximo.
+ * Algoritmo    : Busca em Profundidade (DFS) com pilha explicita, filtrando
+ *                apenas arestas com distancia euclidiana <= limiar_corte.
+ * Detalhe-Chave: Cada componente conexa do grafo filtrado forma um cluster.
  */
 void busca_profundidade_clusters(Grafo *g_pres, float limiar_corte) {
     int n, s, u, v, topo, comp;
@@ -296,14 +308,10 @@ void busca_profundidade_clusters(Grafo *g_pres, float limiar_corte) {
     free(pilha);
 }
 
-/*
- * #11 - AGM de G_Pres com Kruskal + Union-Find.
- *
- * Coleta cada aresta uma vez (u < v em grafo nao-orientado), ordena por peso
- * crescente (qsort) e aceita a aresta se ela ligar componentes diferentes
- * (find(u) != find(v)). Para ao atingir V-1 arestas. Se o grafo for
- * desconexo, o resultado e uma floresta geradora minima (menos de V-1 arestas).
- */
+/* =========================================================================
+ * Arvore Geradora Minima (AGM) — Algoritmo de Kruskal + Union-Find (#11)
+ * ========================================================================= */
+
 typedef struct {
     int u, v;
     float peso;
@@ -338,6 +346,12 @@ static void nac_uf_union(int *pai, int a, int b) {
     pai[nac_uf_find(pai, a)] = nac_uf_find(pai, b);
 }
 
+/*
+ * Objetivo     : Conecta todas as 27 UFs com a menor soma de distancias eleitorais.
+ * Algoritmo    : Kruskal: ordena arestas (qsort) e une componentes sem ciclo
+ *                via Union-Find com compressao de caminho, parando em V - 1.
+ * Detalhe-Chave: Complexidade O(E log E); revela pares de UFs mais proximas.
+ */
 void calcular_mst_eleitoral_kruskal(Grafo *g_pres) {
     int n, total, qtd, i, u, v, escolhidas;
     float peso_total;

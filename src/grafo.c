@@ -1,10 +1,23 @@
+/*
+ * =========================================================================
+ * Modulo: Base de Grafos (src/grafo.c)
+ * Papel : Implementacao da estrutura de grafo usada por todo o projeto.
+ * Teoria: Listas de Adjacencia Dinamicas (crescimento via realloc) e
+ *         Busca em Largura (BFS) com fila circular FIFO.
+ * =========================================================================
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "../include/grafo.h"
 
-/* strdup nao e ANSI C (e POSIX): copia propria de string. */
+/* =========================================================================
+ * Auxiliares Internos
+ * ========================================================================= */
+
+/* strdup nao faz parte do padrao ANSI C89; copia manual via memcpy. */
 static char *duplicar_string(const char *s) {
     size_t n = strlen(s) + 1;
     char *copia = (char *)malloc(n);
@@ -39,6 +52,10 @@ static int inserir_no(Lista *lista, int destino, float peso) {
     lista->num_arestas++;
     return 0;
 }
+
+/* =========================================================================
+ * Criacao, Insercao e Busca de Vertices
+ * ========================================================================= */
 
 Grafo *criar_grafo(int capacidade_inicial, int orientado) {
     Grafo *g;
@@ -99,6 +116,7 @@ int adicionar_vertice(Grafo *g, const char *rotulo) {
     }
 
     if (g->num_vertices == g->capacidade) {
+        /* Dobra a capacidade quando o vetor de vertices lota (crescimento amortizado O(1)) */
         nova_cap = (g->capacidade > 0) ? g->capacidade * 2 : 1;
 
         novo_adj = (Lista *)realloc(g->adj, (size_t)nova_cap * sizeof(Lista));
@@ -134,6 +152,16 @@ int adicionar_vertice(Grafo *g, const char *rotulo) {
     return idx;
 }
 
+/* =========================================================================
+ * Insercao de Arestas, Impressao e Liberacao de Memoria
+ * ========================================================================= */
+
+/*
+ * Objetivo     : Conecta dois vertices com uma aresta ponderada.
+ * Estrutura    : Insercao O(1) na cabeca da lista apos checagem de duplicata.
+ * Detalhe-Chave: Em grafos nao-orientados, garante simetria inserindo nos
+ *                dois sentidos (com rollback se a segunda alocacao falhar).
+ */
 int adicionar_aresta(Grafo *g, int origem, int destino, float peso) {
     No *removido;
 
@@ -142,6 +170,7 @@ int adicionar_aresta(Grafo *g, int origem, int destino, float peso) {
         return -1;
     }
 
+    /* Evita arestas paralelas/duplicadas entre o mesmo par de vertices */
     if (aresta_existe(&g->adj[origem], destino)) {
         return 0;
     }
@@ -150,6 +179,7 @@ int adicionar_aresta(Grafo *g, int origem, int destino, float peso) {
         return -1;
     }
 
+    /* Garante simetria no grafo nao-orientado */
     if (!g->orientado && origem != destino &&
         !aresta_existe(&g->adj[destino], origem)) {
         if (inserir_no(&g->adj[destino], origem, peso) != 0) {
@@ -183,6 +213,11 @@ void imprimir_grafo(const Grafo *g) {
     }
 }
 
+/*
+ * Objetivo     : Desaloca toda a memoria dinamica associada ao grafo.
+ * Ordem        : Nos das listas -> vetor adj -> strings de rotulos -> struct.
+ * Detalhe-Chave: Aceita NULL com seguranca; validado com Valgrind (0 leaks).
+ */
 void liberar_grafo(Grafo *g) {
     int i;
     No *atual;
@@ -214,9 +249,11 @@ void liberar_grafo(Grafo *g) {
     free(g);
 }
 
-/* ===== BFS de propagação por fronteiras (issue #9) ===== */
+/* =========================================================================
+ * Busca em Largura (BFS) — Propagacao por Fronteiras (Eixo Nacional)
+ * ========================================================================= */
 
-/* Fila circular de inteiros usada pela BFS. */
+/* Fila circular FIFO de inteiros usada pela BFS. */
 typedef struct {
     int *dados;
     int inicio;
@@ -253,6 +290,11 @@ static void fila_liberar(FilaInt *f) {
     f->dados = NULL;
 }
 
+/*
+ * Objetivo     : Calcula a distancia em saltos de fronteira a partir de uma UF.
+ * Algoritmo    : Busca em Largura (BFS) com fila circular FIFO e vetor nivel[].
+ * Detalhe-Chave: Complexidade O(V + E); agrupa UFs por camadas de distancia.
+ */
 void busca_largura_propagacao_fronteiras(Grafo *g, int origem) {
     int n, i, k, u, v, max_nivel, primeiro;
     int *visitado;
