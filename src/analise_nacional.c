@@ -227,3 +227,71 @@ Grafo *carregar_g_pres(const char *caminho) {
     }
     return g;
 }
+
+/*
+ * #10 - Clusters regionais de votacao alinhada (DFS em G_Pres filtrado).
+ *
+ * Criterio do limiar: o peso de cada aresta de G_Pres e a DISTANCIA euclidiana
+ * entre os vetores de percentuais de duas UFs (quanto menor, mais parecidas).
+ * Logo o filtro e por distancia (<=): a DFS so atravessa a aresta (u, v) se
+ * peso <= limiar_corte. Cada componente conexa do grafo filtrado e um cluster.
+ *   - limiar >= maior distancia do grafo -> 1 componente (todas as UFs juntas);
+ *   - limiar menor que a menor distancia (ex.: 0) -> 1 componente por UF.
+ * A DFS usa pilha explicita; um vertice e marcado como visitado ao ser empilhado.
+ */
+void busca_profundidade_clusters(Grafo *g_pres, float limiar_corte) {
+    int n, s, u, v, topo, comp;
+    int *visitado;
+    int *pilha;
+    const No *a;
+
+    if (g_pres == NULL) {
+        fprintf(stderr, "DFS: grafo nulo.\n");
+        return;
+    }
+
+    n = g_pres->num_vertices;
+    if (n <= 0) {
+        fprintf(stderr, "DFS: grafo vazio.\n");
+        return;
+    }
+
+    visitado = calloc((size_t)n, sizeof(int));
+    pilha = malloc((size_t)n * sizeof(int));
+    if (visitado == NULL || pilha == NULL) {
+        fprintf(stderr, "DFS: falha de memoria.\n");
+        free(visitado);
+        free(pilha);
+        return;
+    }
+
+    printf("Clusters de G_Pres (limiar de distancia <= %.4f):\n", limiar_corte);
+    comp = 0;
+    for (s = 0; s < n; s++) {
+        if (visitado[s]) {
+            continue;
+        }
+        /* Vertice ainda nao visitado: inicia uma nova componente. */
+        comp++;
+        printf("Componente %d:", comp);
+        topo = 0;
+        visitado[s] = 1;
+        pilha[topo++] = s;
+        while (topo > 0) {
+            u = pilha[--topo];
+            printf(" %s", g_pres->rotulos[u]);
+            for (a = g_pres->adj[u].cabeca; a != NULL; a = a->prox) {
+                v = a->destino;
+                if (!visitado[v] && a->peso <= limiar_corte) {
+                    visitado[v] = 1;
+                    pilha[topo++] = v;
+                }
+            }
+        }
+        printf("\n");
+    }
+    printf("Total de componentes: %d\n", comp);
+
+    free(visitado);
+    free(pilha);
+}
